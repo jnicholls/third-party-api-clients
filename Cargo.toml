@@ -12,6 +12,7 @@ members = [
 	"google/sheets",
 	"gusto",
 	"mailchimp",
+	"microsoft/graph",
 	"okta",
 	"ramp",
 	"rev.ai",

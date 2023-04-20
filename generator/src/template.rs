@@ -198,13 +198,15 @@ fn parse_inner(t: &str) -> Result<Template> {
                     bail!("expected a constant or parameter");
                 } else if c == '{' {
                     s = State::Parameter;
+                } else if c == '\'' {
+                    continue;
                 } else {
                     s = State::Constant;
                     a.push(c);
                 }
             }
             State::Constant => {
-                if c == '/' {
+                if c == '/' || c == '=' {
                     components.push(Component::Constant(a));
                     a = String::new();
                     s = State::ConstantOrParameter;
@@ -226,7 +228,7 @@ fn parse_inner(t: &str) -> Result<Template> {
                 }
             }
             State::ParameterSlash => {
-                if c == '/' || c == ':' || c == '.' {
+                if c == '/' || c == ':' || c == '.' || c == '\'' || c == ',' || c == ')' {
                     // Google Admin API has ":issueCommand" so we want to allow that!
                     // Shopify sometimes ends after a parameter with ".json", so we want to allow
                     // that.
@@ -597,6 +599,7 @@ pub fn generate_docs_generic_token(
     add_post_header: &str,
 ) -> String {
     let info = generate_docs_openapi_info(api, proper_name, spec_link, name);
+    let proper_name = proper_name.replace(" ", "_");
 
     let add_post_header_args = if !add_post_header.is_empty() {
         format!(
@@ -715,6 +718,7 @@ pub fn generate_docs_generic_api_key(
     spec_link: &str,
 ) -> String {
     let info = generate_docs_openapi_info(api, proper_name, spec_link, name);
+    let proper_name = proper_name.replace(" ", "_");
     format!(
         r#"{}
 //!
@@ -770,6 +774,7 @@ pub fn generate_docs_generic_client_credentials(
     spec_link: &str,
 ) -> String {
     let info = generate_docs_openapi_info(api, proper_name, spec_link, name);
+    let proper_name = proper_name.replace(" ", "_");
     format!(
         r#"{}
 //!

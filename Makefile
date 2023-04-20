@@ -49,6 +49,12 @@ MAILCHIMP_SPEC_DIR = $(CURDIR)/specs/mailchimp
 MAILCHIMP_SPEC = $(MAILCHIMP_SPEC_DIR)/mailchimp.json
 MAILCHIMP_SPEC_REMOTE = https://api.mailchimp.com/schema/3.0/Swagger.json?expand
 
+MICROSOFT_SPEC_DIR = $(CURDIR)/specs/microsoft
+
+MICROSOFT_GRAPH_SPEC_DIR = $(MICROSOFT_SPEC_DIR)/graph
+MICROSOFT_GRAPH_SPEC = $(MICROSOFT_GRAPH_SPEC_DIR)/graph.yaml
+MICROSOFT_GRAPH_SPEC_REMOTE = https://raw.githubusercontent.com/microsoftgraph/msgraph-metadata/master/openapi/v1.0/openapi.yaml
+
 OKTA_SPEC_DIR = $(CURDIR)/specs/okta
 OKTA_SPEC = $(OKTA_SPEC_DIR)/okta.json
 OKTA_SPEC_REPO = okta/okta-management-openapi-spec
@@ -94,12 +100,15 @@ ZOOM_SPEC_DIR = $(CURDIR)/specs/zoom
 ZOOM_SPEC = $(ZOOM_SPEC_DIR)/zoom.json
 ZOOM_SPEC_REMOTE = https://marketplace.zoom.us/docs/api-reference/zoom-api/Zoom%20API.oas2.json
 
-generate: README.md docusign giphy github google-admin google-calendar google-cloud-resource-manager google-drive google-groups-settings google-sheets gusto mailchimp okta ramp revai sendgrid shipbob shopify slack stripe tripactions zoom
+generate: README.md docusign giphy github google-admin google-calendar google-cloud-resource-manager google-drive google-groups-settings google-sheets gusto mailchimp microsoft-graph okta ramp revai sendgrid shipbob shopify slack stripe tripactions zoom
 	cargo test tests
 	cargo clippy
 
 target/debug/generator: generator/src/*.rs generator/Cargo.toml
 	cargo build --bin generator
+
+target/release/generator: generator/src/*.rs generator/Cargo.toml
+	cargo build --release --bin generator
 
 examples: generate github/examples/*.rs
 	cargo build --examples --features="httpcache"
@@ -125,6 +134,7 @@ update-specs:
 		$(GOOGLE_GROUPS_SETTINGS_SPEC_DIR) \
 		$(GUSTO_SPEC_DIR) \
 		$(MAILCHIMP_SPEC_DIR) \
+		$(MICROSOFT_GRAPH_SPEC_DIR) \
 		$(OKTA_SPEC_DIR) \
 		$(SENDGRID_SPEC_DIR) \
 		$(SHIPBOB_SPEC_DIR) \
@@ -143,6 +153,7 @@ update-specs:
 		$(GOOGLE_GROUPS_SETTINGS_SPEC) \
 		$(GUSTO_SPEC) \
 		$(MAILCHIMP_SPEC) \
+		$(MICROSOFT_GRAPH_SPEC) \
 		$(OKTA_SPEC) \
 		$(SENDGRID_SPEC) \
 		$(SHIPBOB_SPEC) \
@@ -365,6 +376,28 @@ mailchimp: target/debug/generator $(MAILCHIMP_SPEC)
 		--user-consent-endpoint "login.mailchimp.com/oauth2/authorize" $(EXTRA_ARGS)
 	cargo fmt -p mailchimp-api
 	@echo -e "- [MailChimp](mailchimp/) [![docs.rs](https://docs.rs/mailchimp-api/badge.svg)](https://docs.rs/mailchimp-api)" >> README.md
+
+.PHONY: microsoft
+microsoft: microsoft-graph
+	cargo test tests
+	cargo clippy
+
+$(MICROSOFT_GRAPH_SPEC_DIR):
+	mkdir -p $@
+
+$(MICROSOFT_GRAPH_SPEC): $(MICROSOFT_GRAPH_SPEC_DIR)
+	curl -sSL $(MICROSOFT_GRAPH_SPEC_REMOTE) -o $@
+
+microsoft-graph: target/release/generator $(MICROSOFT_GRAPH_SPEC)
+	./target/release/generator -i $(MICROSOFT_GRAPH_SPEC) -v 0.1.0 \
+		-o microsoft/graph \
+		-n microsoft-graph-api \
+		--proper-name "Microsoft Graph API" \
+		-d "A fully generated & opinionated API client for the Microsoft Graph API." \
+		--spec-link "$(MICROSOFT_GRAPH_SPEC_REMOTE)" \
+		--tag-filter "users." \
+		--host "graph.microsoft.com" $(EXTRA_ARGS)
+	cargo fmt -p microsoft-graph-api
 
 $(OKTA_SPEC_DIR):
 	mkdir -p $@

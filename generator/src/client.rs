@@ -794,6 +794,10 @@ fn basic_new_from_env(
 
     let server_arg = servers.server_arg();
     let server_param = servers.server_param();
+    let proper_name = proper_name
+        .to_uppercase()
+        .replace(".", "")
+        .replace(" ", "_");
 
     format!(
         r#"
@@ -826,12 +830,12 @@ where
         add_post_header_type,
         add_post_header_args,
         add_post_header_args_where,
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
+        proper_name,
+        proper_name,
+        proper_name,
+        proper_name,
+        proper_name,
+        proper_name,
         add_post_header_fn,
     )
 }
@@ -1002,8 +1006,14 @@ impl Client {{
     }}
 
     {}"#,
-        proper_name.to_uppercase().replace('.', ""),
-        proper_name.to_uppercase().replace('.', ""),
+        proper_name
+            .to_uppercase()
+            .replace('.', "")
+            .replace(" ", "_"),
+        proper_name
+            .to_uppercase()
+            .replace('.', "")
+            .replace(" ", "_"),
         get_shared_functions(proper_name, add_post_header)
     )
 }
@@ -1820,7 +1830,7 @@ impl Client {{
             Err(e) => panic!("creating reqwest client failed: {{:?}}", e),
         }}
     }}
-    
+
     /// Override the host for all endpoins in the client.
     pub fn with_host_override<H>(&mut self, host: H) -> &mut Self
     where

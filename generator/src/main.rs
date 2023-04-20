@@ -32,9 +32,13 @@ impl TemplateType {
     fn from_proper_name(proper_name: &str) -> TemplateType {
         match proper_name {
             "GitHub" => TemplateType::Github,
-            "SendGrid" | "Giphy" | "Rev.ai" | "Okta" | "ShipBob" | "Stripe" => {
-                TemplateType::GenericApiKey
-            }
+            "Microsoft Graph API"
+            | "SendGrid"
+            | "Giphy"
+            | "Rev.ai"
+            | "Okta"
+            | "ShipBob"
+            | "Stripe" => TemplateType::GenericApiKey,
             "TripActions" => TemplateType::GenericClientCredentials,
             _ => TemplateType::GenericToken,
         }
@@ -71,11 +75,45 @@ where
     Ok(serde_json::from_reader(f)?)
 }
 
-fn load_api<P>(p: P) -> Result<OpenAPI>
+fn load_api<P>(p: P, tag_filters: &[String]) -> Result<OpenAPI>
 where
     P: AsRef<Path>,
 {
-    let api: OpenAPI = load(p)?;
+    let mut api: OpenAPI = load(p)?;
+
+    if !tag_filters.is_empty() {
+        api.paths.paths = api
+            .paths
+            .paths
+            .into_iter()
+            .filter(|(_, p)| match p {
+                openapiv3::ReferenceOr::Item(p) => [
+                    p.delete.as_ref(),
+                    p.get.as_ref(),
+                    p.head.as_ref(),
+                    p.options.as_ref(),
+                    p.patch.as_ref(),
+                    p.post.as_ref(),
+                    p.put.as_ref(),
+                    p.trace.as_ref(),
+                ]
+                .iter()
+                .flatten()
+                .any(|op| {
+                    tag_filters
+                        .iter()
+                        .any(|f| op.tags.iter().any(|t| t.starts_with(f)))
+                }),
+                _ => true,
+            })
+            .collect();
+
+        api.tags = api
+            .tags
+            .into_iter()
+            .filter(|t| tag_filters.iter().any(|f| t.name.starts_with(f)))
+            .collect();
+    }
 
     if api.openapi != "3.0.3" {
         /*
@@ -303,6 +341,8 @@ impl ParameterDataExt for openapiv3::ParameterData {
                                         "uuid" => "&str".to_string(),
                                         "hostname" => "&str".to_string(),
                                         "time" => "chrono::NaiveTime".to_string(),
+                                        "duration" => "&str".to_string(),
+                                        "base64url" => "&str".to_string(),
                                         f => {
                                             bail!("XXX unknown string format {}", f)
                                         }
@@ -1825,6 +1865,14 @@ impl TypeSpace {
                                     s.schema_data.clone(),
                                 ),
                             )),
+                            "duration" => Ok((
+                                Some(uid.to_string()),
+                                TypeDetails::Basic("String".to_string(), s.schema_data.clone()),
+                            )),
+                            "base64url" => Ok((
+                                Some(uid.to_string()),
+                                TypeDetails::Basic("String".to_string(), s.schema_data.clone()),
+                            )),
                             f => bail!("XXX unknown string format {}", f),
                         },
                     }
@@ -2929,6 +2977,12 @@ fn main() -> Result<()> {
         "ADD_POST_HEADER",
     );
     opts.optflag("", "debug", "Print debug output");
+    opts.optopt(
+        "",
+        "tag-filter",
+        "Filters the tags that are generated",
+        "TAG_FILTER",
+    );
 
     let args = match opts.parse(std::env::args().skip(1)) {
         Ok(args) => {
@@ -2944,7 +2998,8 @@ fn main() -> Result<()> {
         }
     };
 
-    let api = load_api(args.opt_str("i").unwrap())?;
+    let tag_filters = args.opt_strs("tag-filter");
+    let api = load_api(args.opt_str("i").unwrap(), &tag_filters)?;
 
     let servers = client::generate_servers(&api.servers, "Root");
 
@@ -3057,7 +3112,7 @@ fn main() -> Result<()> {
             let content = &r.item().unwrap().content;
 
             for (ct, mt) in content {
-                if ct == "application/json" {
+                if ct == "application/json" || ct == "text/plain" {
                     if let Some(s) = &mt.schema {
                         if let Ok(item) = s.item() {
                             // We have an item, we want to check
